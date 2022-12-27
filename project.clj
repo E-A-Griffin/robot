@@ -10,13 +10,27 @@
                  [cljs-await "1.0.2"]
                  [org.clojars.c4605/cljs.nodejs.shell "0.1.0"]
                  [binaryage/oops "0.7.2"]]
-  :plugins [[lein-npm "0.6.2"]]
+  :plugins [[lein-npm "0.6.2"]
+            [lein-clr "0.2.2"]]
   :source-paths ["src" "target/classes"]
   :npm {:dependencies [[source-map-support "0.4.0"]
                        [robotjs "0.6.0"]
                        [sleep "6.3.0"]
                        ["@napi-rs/clipboard" "1.0.1"]
                        [keycoder "1.1.1"]]}
+
+  :clr {:cmd-templates  {:clj-dep   [["./target/clr/clj" %1]]
+                         :clj-url   "https://sourceforge.net/projects/clojureclr/files/clojure-clr-1.10.0-Release-net4.6.1.zip/download"
+                         :clj-zip   "clojure-clr-1.10.0-Release-net4.6.1.zip"
+                         :curl      ["curl" "--insecure" "-f" "-L" "-o" %1 %2]
+                         :nuget-ver [[*PATH "nuget"] "install" %1 "-Version" %2]
+                         :unzip     ["unzip" "-d" %1 %2]}
+        :nuget-any     ["nuget" "install" %1 "-Version" %2]
+        :deps-cmds     [[:curl  :clj-zip :clj-url]
+                        [:unzip "../clj" :clj-zip]
+                        [:nuget-ver "SharpHook" "4.0.0"]]
+        :main-cmd      [[*PATH "Clojure.Main.exe"]]
+        :compile-cmd   [[*PATH "clj"] "-M" "rm_unused_runtimes.clj"]}
 
   :repl-options {:init-ns robot.core
                  :nrepl-middleware [cider.piggieback/wrap-cljs-repl]}
