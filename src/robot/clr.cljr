@@ -1,0 +1,20 @@
+(ns robot.clr
+  (:import (System.Char)
+           (System.Reflection.Assembly)))
+
+(def sharphook-assembly (assembly-load "SharpHook"))
+
+
+;; TODO: delete this
+(def a-key-code (enum-val SharpHook.Native.KeyCode "VcC"))
+
+(doto robot
+  (. SimulateKeyPress a-key-code)
+  (. SimulateKeyRelease a-key-code))
+;; TODO: end delete this
+
+(defn- capitalize-first-letter
+  "Capitalize the first letter of `s`"
+  [s]
+  #_{:clj-kondo/ignore [:unresolved-namespace]}
+  (str (Char/ToUpper (first s)) (apply str (rest s))))

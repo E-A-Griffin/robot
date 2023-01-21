@@ -10,31 +10,57 @@
                                      StringSelection Transferable)
               (java.awt.event InputEvent KeyEvent))))
 
+;; Platform dependent library loading
+#?(:cljs (def ^:private sleep-module (js/require "sleep")))
+
+#?(:cljs (def ^:private keycoder (js/require "keycoder")))
+
+
 ;; TODO: Figure out what to do about keys in java.awt.Robot but not in RobotJS
 (defn key->key-event
   "takes in a keyword `kw` and returns it's respective key-event"
   [kw]
   (->
    (case kw
-    :cmd #?(:clj "KeyEvent/VK_META"
-            :cljs "command")
-    :esc #?(:clj "KeyEvent/VK_ESCAPE"
-            :cljs "escape")
-    :back #?(:clj "KeyEvent/VK_BACK_SPACE"
-             :cljs "backspace")
-    :bq #?(:clj "KeyEvent/VK_BACK_QUOTE"
-           :cljs nil)
-    :quote #?(:clj "KeyEvent/VK_QUOTE"
+    :cmd   #?(:clj  "KeyEvent/VK_META"
+              :cljr "VcLeftMeta"
+              :cljs "command")
+    :esc   #?(:clj  "KeyEvent/VK_ESCAPE"
+              :cljr "VcEscape"
+              :cljs "escape")
+    :back  #?(:clj  "KeyEvent/VK_BACK_SPACE"
+              :cljr "VcBackspace"
+              :cljs "backspace")
+    :bq    #?(:clj  "KeyEvent/VK_BACK_QUOTE"
+              :cljr "VcBackquote"
+              :cljs nil)
+    :quote #?(:clj  "KeyEvent/VK_QUOTE"
+              :cljr "VcQuote"
               :cljs "'")
-    :caps #?(:clj "KeyEvent/VK_CAPS_LOCK"
-             :cljs nil)
-    :ctrl #?(:clj "KeyEvent/VK_CONTROL"
-             :cljs "control")
+    :caps  #?(:clj  "KeyEvent/VK_CAPS_LOCK"
+              :cljr "VcCapsLock"
+              :cljs nil)
+    :ctrl  #?(:clj  "KeyEvent/VK_CONTROL"
+              :cljr "VcLeftControl"
+              :cljs "control")
+    :alt   #?(:clj  "KeyEvent/VK_ALT"
+              :cljr "VcLeftAlt"
+              :cljs "alt")
+    :shift #?(:clj  "KeyEvent/VK_SHIFT"
+              :cljr "VcLeftShift"
+              :cljs "shift")
+    :meta  #?(:clj  "KeyEvent/VK_META"
+              :cljr "VcLeftMeta"
+              :cljs "meta")
     #?(:clj
        (->> kw
             name
             .toUpperCase
             (str "KeyEvent/VK_"))
+       :cljr (->> kw
+                  name
+                  capitalize-first-letter
+                  (str "Vc"))
        :cljs
        (let [upper? (fn [s] (string? (re-find #"\b[A-Z]\b" s)))
              shift-char? (fn [s] (string?
@@ -45,48 +71,21 @@
          (cond
            ((some-fn upper? shift-char?) kw-name) [kw-name "shift"]
            :else kw-name))))
-   #?(:clj (->> (re-find #"KeyEvent\/VK_[A-Z0-9\_]+")
+   #?(:clj (->> (re-find (re-pattern "KeyEvent\\/VK_[A-Z0-9\\_]+"))
                 symbol
                 eval)
+      :cljr (->> (re-find #"Vc[A-Za-z0-9]+")
+                 (enum-val SharpHook.Native.KeyCode))
       :cljs identity)))
 
-;; FIXME:
-(comment (def ^{:private true} key-events-map
-  {:a     KeyEvent/VK_A :b KeyEvent/VK_B :c KeyEvent/VK_C :d KeyEvent/VK_D :e KeyEvent/VK_E
-   :f     KeyEvent/VK_F :g KeyEvent/VK_G :h KeyEvent/VK_H :i KeyEvent/VK_I :j KeyEvent/VK_J
-   :k     KeyEvent/VK_K :l KeyEvent/VK_L :m KeyEvent/VK_M :n KeyEvent/VK_N :o KeyEvent/VK_O
-   :p     KeyEvent/VK_P :q KeyEvent/VK_Q :r KeyEvent/VK_R :s KeyEvent/VK_S :t KeyEvent/VK_T
-   :u     KeyEvent/VK_U :v KeyEvent/VK_V :w KeyEvent/VK_W :x KeyEvent/VK_X :y KeyEvent/VK_Y
-   :z     KeyEvent/VK_Z
-   :1     KeyEvent/VK_1 :2 KeyEvent/VK_2 :3 KeyEvent/VK_3 :4 KeyEvent/VK_4 :5 KeyEvent/VK_5
-   :6     KeyEvent/VK_6 :7 KeyEvent/VK_7 :8 KeyEvent/VK_8 :9 KeyEvent/VK_9 :0 KeyEvent/VK_0
-   :cmd   KeyEvent/VK_META :meta KeyEvent/VK_META
-   :shift KeyEvent/VK_SHIFT
-   :alt   KeyEvent/VK_ALT
-   :esc   KeyEvent/VK_ESCAPE
-   :enter KeyEvent/VK_ENTER
-   :back  KeyEvent/VK_BACK_SPACE
-   :bq    KeyEvent/VK_BACK_QUOTE                            ; back quote
-   :quote KeyEvent/VK_QUOTE
-   :tab   KeyEvent/VK_TAB
-   :caps  KeyEvent/VK_CAPS_LOCK
-   :ctrl  KeyEvent/VK_CONTROL
-   :space KeyEvent/VK_SPACE
-   :f1    KeyEvent/VK_F1 :f2 KeyEvent/VK_F2 :f3 KeyEvent/VK_F3 :f4 KeyEvent/VK_F4
-   :f5    KeyEvent/VK_F5 :f6 KeyEvent/VK_F6 :f7 KeyEvent/VK_F7 :f8 KeyEvent/VK_F8
-   :f9    KeyEvent/VK_F9 :f10 KeyEvent/VK_F10 :f11 KeyEvent/VK_F11 :f12 KeyEvent/VK_F12
-   :left  KeyEvent/VK_LEFT :right KeyEvent/VK_R :up KeyEvent/VK_UP :down KeyEvent/VK_DOWN}))
-
 ;; KEYBOARD-API
-#?(:clj (def ^Robot robot (Robot.))
+#?(:clj  (def ^Robot robot (Robot.))
+   :cljr (def robot (SharpHook.EventSimulator.))
    :cljs (def robot (js/require "robotjs")))
 
-#?(:cljs (def ^:private sleep-module (js/require "sleep")))
-
-#?(:cljs (def ^:private keycoder (js/require "keycoder")))
-
 (defn sleep [millis]
-  #?(:clj (.delay robot millis)
+  #?(:clj  (.delay robot millis)
+     :cljr (Thread/Sleep millis)
      :cljs (.msleep sleep-module millis)))
 
 (defn- keys->key-events [keys]
@@ -95,7 +94,8 @@
 (defn- delay!
   "`delay` is in milliseconds"
   [robot delay]
-  #?(:clj (.delay robot delay)
+  #?(:clj  (.delay robot delay)
+     :cljr (Thread/sleep delay)
      :cljs (.setKeyboardDelay robot delay)))
 
 (defn- key-toggle!
@@ -104,6 +104,10 @@
   otherwise"
   [robot key-event up?]
   #?(:clj (if up? (.keyRelease robot key-event) (.keyPress robot key-event))
+     :cljr (do (if up?
+                 (.SimulateKeyRelease robot key-event)
+                 (.SimulateKeyPress robot key-event))
+               nil)
      :cljs (let [up-or-down (if up? "up" "down")]
              (if (vector? key-event)
                (.keyToggle robot (first key-event) up-or-down

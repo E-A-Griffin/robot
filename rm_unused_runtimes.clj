@@ -4,8 +4,9 @@
             [clojure.java.io :as io]
             [clojure.java.shell :as sh]))
 
+;; OS predicates
 (defn os?
-  "True iff `s` starts with `os-substr`"
+  "True iff `s` includes `os-substr`"
   [os-substr s]
   (str/includes? (str/lower-case s) os-substr))
 
@@ -13,6 +14,23 @@
 (def mac? (partial os? "mac"))
 (def linux? (partial os? "linux"))
 (def unix? (partial os? "nix"))
+
+
+;; Architecture predicates
+(def arch? os?)
+
+(def arm32? (partial arch? "arm"))
+
+(defn arm64?
+  [s]
+  (and (arm32? s)
+       (arch? "64" s)))
+
+(def x86? (some-fn (partial arch? "i386")
+                   (partial arch? "x86")))
+
+(def x64? (partial arch? "amd64"))
+
 
 (defn non-empty-dir?
   "True iff `dir` is a path to a non empty directory"
@@ -34,11 +52,42 @@
        (catch java.io.IOException _
          (println "directory already deleted/does not exist"))))
 
+(defn cp
+  "Copy file at `src` into `dest`"
+  [src dest]
+  (spit dest (slurp src)))
+
+(defn cp-native-code
+  "Copies native code to proper directory based on `os` and `arch`"
+  [os arch]
+  (let [os+arch-path (str (case os
+                            :win   "win"
+                            :mac   "osx"
+                            :linux "linux"
+                            :unix  "linux")
+                          "-"
+                          (cond
+                            (arm64? arch) "arm64"
+                            (arm32? arch) "arm"
+                            (x86? arch)   "x86"
+                            (x64? arch)   "x64"))
+        native-file (-> "target/clr/lib/SharpHook.4.0.0/runtimes/"
+                        (str os+arch-path "/native/")
+                        .listFiles
+                        first)
+        native-file-name (.getName native-file)
+        native-file-path (.getPath native-file)]
+    (cp (str "target/clr/lib/SharpHook.4.0.0/" native-file-name)
+        native-file-path)))
+
 (defn -main
   [& args]
   (println "args:" args)
   ;; Compile
-  (println (apply sh/sh "Clojure.Compile.exe" args))
+  (println "Compilation results:"
+   (if (->> args (remove nil?) count zero?)
+     (sh/sh "Clojure.Compile.exe")
+     (apply sh/sh "Clojure.Compile.exe" args)))
   ;; Remove unnecessary dependencies to avoid assembly errors
   (let [os-name (System/getProperty "os.name")
         subdir "target/clr/lib/SharpHook.4.0.0/runtimes/"
@@ -52,4 +101,4 @@
       (or (linux? os-name)
           (unix? os-name)) (doseq [dir (concat windows-dirs mac-dirs)]
                              (rm-dir dir)))))
-(-main)
+(-main *command-line-args*)
